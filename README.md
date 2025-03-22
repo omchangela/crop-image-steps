@@ -23,44 +23,42 @@ Add the HTML structure for the image preview, cropping area, and hidden input fo
 1. Replace the existing form in your Blade template with the following code:
 
     ```html
-    <form action="{{ isset($image) ? route('admin.instagram.update', $image->id) : route('admin.instagram.store') }}" method="POST" enctype="multipart/form-data">
-        @csrf
-        @if(isset($image))
-            @method('PUT')
-        @endif
+    
+            <form action="{{ isset($image) ? route('admin.instagram.update', $image->id) : route('admin.instagram.store') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                @if(isset($image))
+                    @method('PUT')
+                @endif
 
-        <div class="form-group mb-4">
-            <label for="image" class="form-label fw-bold">Instagram Image</label>
-            <input type="file" name="image" id="image" class="form-control" accept="image/*" {{ isset($image) ? '' : 'required' }}>
+                <div class="form-group mb-4">
+                    <label for="image" class="form-label fw-bold">Instagram Image</label>
+                    <input type="file" name="image" id="image" class="form-control" accept="image/*" {{ isset($image) ? '' : 'required' }}>
 
-            <!-- Image Preview and Cropping Area -->
-            <div class="mt-3">
-                <p class="fw-bold">Preview:</p>
-                <div id="image-preview-container" class="text-center" style="display: none;">
-                    <img id="image-preview" src="#" alt="Preview" class="img-fluid rounded shadow-sm" style="max-height: 300px;">
+                    <!-- Image Preview and Cropping Area -->
+                    <div class="mt-3">
+                        <p class="fw-bold">Preview:</p>
+                        <div id="image-preview-container" class="text-center" style="display: none;">
+                            <img id="image-preview" src="#" alt="Preview" class="img-fluid rounded shadow-sm" style="max-height: 300px;">
+                        </div>
+                    </div>
+
+                    @if(isset($image))
+                        <div class="mt-3">
+                            <p class="fw-bold">Current Image:</p>
+                            <img src="{{ asset('storage/' . $image->image) }}" alt="Current Image" class="img-thumbnail" width="150">
+                        </div>
+                    @endif
                 </div>
-                <button type="button" id="crop-button" class="btn btn-outline-primary mt-3" style="display: none;">
-                    <i class="icon-crop"></i> Crop Image
-                </button>
-            </div>
 
-            @if(isset($image))
-                <div class="mt-3">
-                    <p class="fw-bold">Current Image:</p>
-                    <img src="{{ asset('storage/' . $image->image) }}" alt="Current Image" class="img-thumbnail" width="150">
+                <!-- Hidden input to store cropped image data -->
+                <input type="hidden" name="cropped_image" id="cropped-image">
+
+                <div class="form-group mt-4">
+                    <button type="submit" class="btn btn-primary text-bold">
+                        <i class="icon-check"></i> {{ isset($image) ? 'Update Image' : 'Add Image' }}
+                    </button>
                 </div>
-            @endif
-        </div>
-
-        <!-- Hidden input to store cropped image data -->
-        <input type="hidden" name="cropped_image" id="cropped-image">
-
-        <div class="form-group mt-4">
-            <button type="submit" class="btn btn-primary text-bold">
-                <i class="icon-check"></i> {{ isset($image) ? 'Update Image' : 'Add Image' }}
-            </button>
-        </div>
-    </form>
+            </form>
     ```
 
 ---
@@ -72,66 +70,53 @@ Add the JavaScript code to handle image preview, cropping, and storing the cropp
 
     ```html
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const imageInput = document.getElementById('image');
-            const imagePreviewContainer = document.getElementById('image-preview-container');
-            const imagePreview = document.getElementById('image-preview');
-            const cropButton = document.getElementById('crop-button');
-            const croppedImageInput = document.getElementById('cropped-image');
-            let cropper;
+    document.addEventListener('DOMContentLoaded', function () {
+        const imageInput = document.getElementById('image');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const croppedImageInput = document.getElementById('cropped-image');
+        let cropper;
 
-            // When the user selects an image
-            imageInput.addEventListener('change', function (e) {
-                const files = e.target.files;
+        imageInput.addEventListener('change', function (e) {
+            const files = e.target.files;
 
-                if (files && files.length > 0) {
-                    const file = files[0];
-                    const reader = new FileReader();
+            if (files && files.length > 0) {
+                const file = files[0];
+                const reader = new FileReader();
 
-                    reader.onload = function (event) {
-                        // Show the preview container
-                        imagePreviewContainer.style.display = 'block';
-                        imagePreview.src = event.target.result;
+                reader.onload = function (event) {
+                    imagePreviewContainer.style.display = 'block';
+                    imagePreview.src = event.target.result;
 
-                        // Initialize Cropper.js
-                        if (cropper) {
-                            cropper.destroy();
+                    if (cropper) {
+                        cropper.destroy();
+                    }
+                    cropper = new Cropper(imagePreview, {
+                        aspectRatio: 9 / 16, // Customize as needed
+                        viewMode: 1,
+                        autoCropArea: 1,
+                        crop: function () {
+                            // Automatically update the cropped image data when the crop box changes
+                            const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg');
+                            croppedImageInput.value = croppedImageData;
                         }
-                        cropper = new Cropper(imagePreview, {
-                            aspectRatio: 1, // Set aspect ratio (e.g., 1:1 for square)
-                            viewMode: 1, // Restrict crop box to the image size
-                            autoCropArea: 1, // Automatically set the crop area
-                        });
+                    });
+                };
 
-                        // Show the crop button
-                        cropButton.style.display = 'block';
-                    };
-
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            // When the user clicks the crop button
-            cropButton.addEventListener('click', function () {
-                if (cropper) {
-                    // Get the cropped image data as a base64 string
-                    const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg');
-
-                    // Set the cropped image data to the hidden input
-                    croppedImageInput.value = croppedImageData;
-
-                    // Optionally, display the cropped image
-                    imagePreview.src = croppedImageData;
-
-                    // Destroy the cropper instance
-                    cropper.destroy();
-                    cropper = null;
-
-                    // Hide the crop button
-                    cropButton.style.display = 'none';
-                }
-            });
+                reader.readAsDataURL(file);
+            }
         });
+
+        // Clean up cropper on form submit to ensure latest data is sent
+        document.querySelector('form').addEventListener('submit', function () {
+            if (cropper) {
+                const croppedImageData = cropper.getCroppedCanvas().toDataURL('image/jpeg');
+                croppedImageInput.value = croppedImageData;
+                cropper.destroy();
+                cropper = null;
+            }
+        });
+    });
     </script>
     ```
 
@@ -148,24 +133,24 @@ Update your controller to handle the cropped image data and save it to the serve
     public function store(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:12048',
             'cropped_image' => 'sometimes|string', // Cropped image as base64
         ]);
-
+    
         if ($request->has('cropped_image') && $request->cropped_image) {
             // Decode the base64 image
             $croppedImage = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $request->cropped_image));
-
+    
             // Save the cropped image to storage
             $imageName = 'instagram_' . time() . '.jpg';
             Storage::disk('public')->put('instagram/' . $imageName, $croppedImage);
-
+    
             // Save the image path to the database
             InstagramShowcase::create([
                 'image' => 'instagram/' . $imageName,
             ]);
         }
-
+    
         return redirect()->route('admin.instagram.index')->with('success', 'Image uploaded successfully.');
     }
     ```
